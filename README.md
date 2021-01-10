@@ -9,8 +9,8 @@ Takes in two force constant files Fourier transformed (using d3_q2r.x executable
 Finds common force constants and takes the difference since it is assumed a different amount of q-points were sampled on the same system.
 
 It should also work if the usual q2r.x executable is used to Fourier transform. The only difference is the d3_q2r.x executable centers
-the force constants so they are symmetric. As long as the same executable is used on both files you'll get what you need. See the bash script
+the force constants so they are symmetric about zero. As long as the same executable is used on both files you'll get what you need. See the bash script
 for further information. Not efficient at all. If file is large will take very long. Recommend optimizing.
 
 
-###jjj
+### jjj
