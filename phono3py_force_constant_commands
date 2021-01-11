@@ -1,0 +1,9 @@
+mv'ing vasprun.xml from supercell to use to subtract residual forces in the undisplaced cell.
+
+>> phono3py --cf3 disp-{1..356}/vasprun.xml --cfz disp-0/vasprun.xml
+
+
+>> phono3py --dim="3 3 1" -c "POSCAR-unitcell"
+
+Max drift of fc3: 0.666146 (yxx) -0.240662 (yyy) 0.000035 (zxx)
+Max drift of fc2: -0.002234 (xx) -0.000002 (zz)
