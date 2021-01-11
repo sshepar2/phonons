@@ -2,7 +2,7 @@
 
 Includes scripts which were helpful when using VASP in conjunction with phonopy/phono3py as well as Quantum Espresso and D3Q.
 
-## Quantum Espresso/D3Q
+## Quantum Espresso-D3Q
 
 ### fc2_diff.sh
 
@@ -14,7 +14,7 @@ It should also work if the usual q2r.x executable is used to Fourier transform. 
 the force constants so they are symmetric about zero. As long as the same executable is used on both files you'll get what you need. See the bash script
 for further information. Not efficient at all. If file is large will take very long. Recommend optimizing.
 
-## VASP/phonopy/phono3py
+## VASP-phonopy-phono3py
 
 ### VASP-setup.sh
 
@@ -28,4 +28,9 @@ file called 'check.out' summarizing the current status of your submissions. It i
 with other useful information such as the number of electronic steps and the time taken to complete the calculation. An example 'check.out'
 file is included under /phonons/.
 
-### 
+### phono3py-setup.sh
+
+When calculating force constants with phonopy/phono3py needs all vasprun.xml files for all displaced POSCARS.
+This just moves all vasprun.xml files into directories called disp-#####. Not entirely necessary.
+
+
