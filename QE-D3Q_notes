@@ -1,0 +1,266 @@
+#################################################
+#################################################
+## SETTING UP THERMAL CONDUCTIVITY CALCULATION ##
+#################################################
+#################################################
+
+Tutorials for using QE and D3Q are located on Spiedie at:
+
+/cm/shared/apps/qe/qe-6.4.new/D3Q/Examples/Tutorial2016/
+
+Below are steps I've written to calculate thermal conductivity once
+the 2nd/3rd order dynamical matrices/tensors have been calculated
+with DFPT in QE.
+
+######################################
+CALCULATE 2ND ORDER FORCE CONSTANTS ##
+######################################
+
+1. Cp'd all 2nd order dynamical matrices as shown below
+
+>>> cp ../harm888/matdyn* fc2/
+
+
+2. In dir fc2/ , used q2r.in as input file and ran runq2r.sh run script (see files below)
+
+>>> sbatch runq2r.sh
+
+This is calculated very quickly, run on quick queue.
+
+q2r.in:
+----------------------------------------
+&input
+  fildyn='matdyn'            % the prefix used when saving 2nd order dynamical matrices (to read)
+  zasr='simple'              % zero acoustic sum rule
+  flfrc='BeSe.2fc'           % 2nd order force constants are saved to this specified file name (to write)
+  loto_2d=.true.             % if 2d, include loto splitting
+/
+----------------------------------------
+
+Important stuff in runq2r.sh:
+----------------------------------------
+.
+.
+module load qe/6.4
+
+mpirun -np 1 d3_q2r.x < q2r.in > q2r.out      % d3_q2r.x is a script only available in the qe/6.4 module on spiedie since it has the D3Q package installed
+----------------------------------------      % it is a special version of q2r.x which is available in any qe version
+                                              % apparent from its name, q2r.x is basically a fast foureier transform script
+
+
+File BeSe.2fc should appear in directory.
+
+
+######################################
+CALCULATE 3RD ORDER FORCE CONSTANTS ##
+######################################
+
+The 3rd order force constants are calculated directly from the terminal, on the head node.
+I'm sure the same can be done for 2nd order force constants.
+
+
+1. loaded the qe module that has the D3Q scripts available
+
+>>> module load qe/6.4
+
+sometimes this tells me I must load the appropriate compilers, although I don't think this is necessary to do.
+
+
+2. used the command below in the fc3/ directory, which is explained below
+
+>>> ls ../../anharm444/FILD3DYN/anh* | /cm/shared/apps/qe/qe-6.4.new/D3Q/thermal2/d3_qq2rr.x 4 4 4 -o BeSe.3fc > d3_qq2rr.out
+
+The first part is a neat way to feed all the appropriate files to the executable d3_qq2rr.x
+The directory after ls is where the perturbed rho's are stored. FILD3DYN is the directory specified to store dynamical tensor files
+while the 'anh' is the prefix specified to save the drho files. After the pipe, the executable is called via it's full path
+followed by the mesh size used in the anharmonic calculations and the specified output (-o) file so save the FFT'd force constants
+
+d3_qq2rr.x fourier transforms the 3rd order dynamical matrices (in q-space) to real space, giving the 3rd order force constants.
+
+The real space 3rd order force constants are saved in BeSe.3fc
+
+
+The d3_ scripts center the cell in a specific way which the normal qe scripts don't.
+
+
+########################################
+TOUCHING UP 3RD ORDER FORCE CONSTANTS ##
+########################################
+
+
+1. Applying the acoustic sum rule:  (MUST BE APPLIED PRIOR TO STEP 2, MAKING SPARSE)
+
+>>> /cm/shared/apps/qe/qe-6.4.new/D3Q/thermal2/d3_asr3.x -i BeSe.3fc -o BeSe.3fc.asr > d3_asr.out
+
+Using another D3Q script to apply the acoustic sum rule correction to the BeSe.3fc file
+and saving corrected constants to BeSe.3fc.asr.
+
+The raw output is also saved to d3_asr.out
+
+
+
+2. a. Making matrices sparse:
+
+>>> /cm/shared/apps/qe/qe-6.4.new/D3Q/thermal2/d3_sparse.x -i BeSe.3fc.asr -o BeSe.3fc.asr.sparse -t 0. -n 1000 > d3_sparse_0.out
+
+This makes the matrix sparse (saving memory) and also sets to zero values which are exaclty equal to zero (-t threshold).
+So in this case no extra elements are made sparse besides the elements that are already exactly zero.
+-n 1000 randomly tests the effect of the changes due to applying a threshold. Note in sparse_0.out (raw output) the delta = 0,
+since no changes are made to the matrix in this case.  The updated matrices are saved to 'BeSe.3fc.asr.sparse'
+
+   b. Sparse and removing values close to zero:
+
+>>> /cm/shared/apps/qe/qe-6.4.new/D3Q/thermal2/d3_sparse.x -i BeSe.3fc.asr -o BeSe.3fc.asr.sparse_4 -t 1.e-4 -n 1000 > d3_sparse_4.out
+
+The above command is repeated for various -t threshold values and the output is shown for comparison.
+
+d3_sparse_4.out snippet:
+----------------------------------------------------------------------------------------------------------------------------------
+ Cutting off FCs smaller than :   1.000000000000000E-004 Ry/bohr^3
+ FC+Sparse Memory used :            0 Mb
+ Running        1000 test configurations
+ Max delta:   1.313694495316092E-002  4.154266754824251E-004
+ Avg delta:   7.674071060435538E-003
+ Speedup:      11.1208062718986
+   *         Full matrix form *    14656.482788 *       14.656483 *       14656.483 *       14.656483 *   89.344 *        1000. *
+   *       Sparse matrix form *     1317.933469 *        1.317933 *        1317.933 *        1.317933 *    8.034 *        1000. *
+-----------------------------------------------------------------------------------------------------------------------------------
+
+d3_sparse_5.out snippet:
+----------------------------------------------------------------------------------------------------------------------------------
+ FC Memory used :            0 Mb
+ Cutting off FCs smaller than :   1.000000000000000E-005 Ry/bohr^3
+ FC+Sparse Memory used :            0 Mb
+ Running        1000 test configurations
+ Max delta:   9.408717453309057E-004  2.975297701343556E-005
+ Avg delta:   4.463962624829344E-004
+ Speedup:      4.54070509823972
+   *         Full matrix form *    15811.851103 *       15.811851 *       15811.851 *       15.811851 *   79.252 *        1000. *
+   *       Sparse matrix form *     3482.245766 *        3.482246 *        3482.246 *        3.482246 *   17.454 *        1000. *
+----------------------------------------------------------------------------------------------------------------------------------
+
+d3_sparse_6.out snippet:
+----------------------------------------------------------------------------------------------------------------------------------
+Cutting off FCs smaller than :   1.000000000000000E-006 Ry/bohr^3
+ FC+Sparse Memory used :            0 Mb
+ Running        1000 test configurations
+ Max delta:   3.094480114907874E-005  9.785605337208449E-007
+ Avg delta:   1.526946263476806E-005
+ Speedup:      3.77080044029242
+   *         Full matrix form *    13829.726046 *       13.829726 *       13829.726 *       13.829726 *   75.024 *        1000. *
+   *       Sparse matrix form *     3667.583651 *        3.667584 *        3667.584 *        3.667584 *   19.896 *        1000. *
+----------------------------------------------------------------------------------------------------------------------------------
+
+d3_sparse_7.out snippet:
+----------------------------------------------------------------------------------------------------------------------------------
+ Cutting off FCs smaller than :   1.000000000000000E-007 Ry/bohr^3
+ FC+Sparse Memory used :            0 Mb
+ Running        1000 test configurations
+ Max delta:   1.544913445990258E-006  4.885445277148740E-008
+ Avg delta:   6.304654431842795E-007
+ Speedup:      3.31913405241638
+   *         Full matrix form *    15629.588484 *       15.629588 *       15629.588 *       15.629588 *   74.071 *        1000. *
+   *       Sparse matrix form *     4708.935595 *        4.708936 *        4708.936 *        4.708936 *   22.316 *        1000. *
+----------------------------------------------------------------------------------------------------------------------------------
+
+d3_sparse_8.out snippet:
+----------------------------------------------------------------------------------------------------------------------------------
+ Cutting off FCs smaller than :   1.000000000000000E-008 Ry/bohr^3
+ FC+Sparse Memory used :            0 Mb
+ Running        1000 test configurations
+ Max delta:   2.769505467200270E-008  8.757945268641604E-010
+ Avg delta:   2.496753031277035E-008
+ Speedup:      4.01526405111966
+   *         Full matrix form *    15145.368761 *       15.145369 *       15145.369 *       15.145369 *   77.719 *        1000. *
+   *       Sparse matrix form *     3771.948387 *        3.771948 *        3771.948 *        3.771948 *   19.356 *        1000. *
+----------------------------------------------------------------------------------------------------------------------------------
+
+d3_sparse_0.out snippet:
+----------------------------------------------------------------------------------------------------------------------------------
+ Cutting off FCs smaller than :   0.000000000000000E+000 Ry/bohr^3
+ FC+Sparse Memory used :            0 Mb
+ Running        1000 test configurations
+ Max delta:   0.000000000000000E+000  0.000000000000000E+000
+ Avg delta:   0.000000000000000E+000
+ Speedup:      3.87786540694318
+   *         Full matrix form *    15634.414764 *       15.634415 *       15634.415 *       15.634415 *   75.799 *        1000. *
+   *       Sparse matrix form *     4031.706396 *        4.031706 *        4031.706 *        4.031706 *   19.547 *        1000. *
+----------------------------------------------------------------------------------------------------------------------------------
+
+Things to note from above.
+
+-Most of the memory is saved from just making sparse the exactly zero elements.
+-Roughly a 4x speedup is obtained from just making sparse
+-Not until 1e-4 threshold is there a significant increase in speedup (11x) and reduction in memory.
+-Even when forcing elements at 1e-4 Ry/bohr^3 to zero (lowest threshold performed here) the max effect it is expected to have on the results
+ is still only 0.01. This is small assuming this is units of thermal conductivity (W/m-K). Obviously this is only small when the thermal
+ conductivity is on the order of 1 W/m-K or larger. I would have to check exactly what that delta units are.
+
+
+########################################
+CALCULATE THERMAL CONDUCTIVITY        ##
+########################################
+
+From a previous calc I have noticed after only a couple steps in solving the lbte equation the result is essentially converged to
+the precision nessecary (~0.1 W/m-K). Below I use the full sparse matrix (no threshold).
+
+Below are the files required, found in the 'lbte/' folder"
+
+input.tk:
+-------------------------------------------------------
+&tkinput
+calculation='cgp' ! 'sma' (relaxation time approximation) or  'cgp' (cg preconditioned)
+file_mat2 = '../fc2/BeSe.2fc'                              % location of real space 2nd order force constant file
+file_mat3 = '../fc3/BeSe.3fc.asr.sparse'                   % location of real space 3rd order force constant file
+outdir='20x20'                                             % name of directory to write output files
+asr2 = 'simple'                                            % applying acoustic sum rule...again??
+grid_type = 'simple'                                       % regular mesh
+nk = 20,20,20                                              % q-q mesh (2 particle sampling mesh size)
+nk_in = 20,20,20
+prefix = 'tk'                                              % prefix given to output files to be written
+isotopic_disorder=.false.                                  % no isotope scattering
+  casimir_scattering = .true.                              % including casmir scattering whatever that is
+  sample_length_mu = 1000.                                 % boundary length for boundary scattering, should be negligible at this length
+  sample_dir = 0,0,0                                         but also usually a realistic length
+ /
+CONFIGS
+ 21                                                        % number of configs
+10. 10.                                                    % smearing. temp.  (dots specify floating point number)
+10. 20.                                                      I have not tested different smearings to see how it effects the thermal conductivity
+10. 30.                                                      The smearing refers to the sampling of q-q points. The value of 10. was used in the tutorials.
+10. 40.
+10. 50.
+10. 60.
+10. 70.
+10. 80.
+10. 90.
+10. 100.
+10. 150.
+10. 200.
+10. 250.
+10. 300.
+10. 350.
+10. 400.
+10. 500.
+10. 600.
+10. 700.
+10. 800.
+10. 1000.
+
+-------------------------------------------------------
+
+runtk.sh:
+-------------------------------------------------------
+#!/bin/bash
+
+#SBATCH -J BeSe_QE
+#SBATCH -p defq
+#SBATCH -n 1
+#SBATCH --exclusive
+NPROC=$SLURM_NPROCS
+
+module load qe/6.4
+
+mpirun -np 1 d3_tk.x < input.TK > TK20.out
+-------------------------------------------------------
+
