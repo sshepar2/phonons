@@ -1,0 +1,26 @@
+>> phonopy -f disp-{1..3}/vasprun.xml
+
+>> phonopy -fz ../disp-0/vasprun.xml disp-{1..3}/vasprun.xml      (did not use here)
+
+FORCE_SETS
+
+>> phonopy -p -s band.conf
+
+If you set EIGENVECTORS = .TRUE. in band.conf, it will output the eigenvectors of the dynamical matrix to band.yaml.
+
+Raw output" (important info)
+*check band.out
+
+outputs: mesh.yaml, phonopy.yaml, band.yaml, band_dos.pdf, total_dos.pdf, total_dos.dat
+
+>> phonopy-bandplot --gnuplot band.yaml > band.dat
+
+Get band raw data in band.dat
+
+Negative Frquencies in bands
+
+For thermal properties
+
+>> phonopy -p -s therm.conf > thermal_properties.dat     (saves raw data for personal plotting)
+
+outputs: mesh.yaml, phonopy.yaml, thermal_properties.yaml, thermal_properties.pdf
